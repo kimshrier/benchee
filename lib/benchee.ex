@@ -20,40 +20,27 @@ for {module, moduledoc} <- [{Benchee, elixir_doc}, {:benchee, erlang_doc}] do
     alias Benchee.Formatter
 
     @doc """
-    Run benchmark jobs defined by a map and optionally provide configuration
-    options.
+    Runs the given benchmarks, calculates statistics based on the results and
+    outputs results with the configured formatters.
 
-    Runs the given benchmarks and prints the results on the console.
-
-    * jobs - a map from descriptive benchmark job name to a function to be
-    executed and benchmarked
-    * configuration - configuration options to alter what Benchee does, see
-    `Benchee.Configuration.init/1` for documentation of the available options.
+    Benchmarks are defined as a map where the keys are a name for the given
+    function and the values are the functions to benchmark. Users can configure
+    the run by passing a keyword list as the second argument. For more
+    information on configuration see `Benchee.Configuration.init/1`.
 
     ## Examples
 
-        Benchee.run(%{"My Benchmark" => fn -> 1 + 1 end,
-                      "My other benchmrk" => fn -> "1" ++ "1" end}, time: 3)
-        # Prints a summary of the benchmark to the console
-
+        Benchee.run(
+          %{
+            "My Benchmark" => fn -> 1 + 1 end,
+            "My other benchmrk" => fn -> [1] ++ [1] end
+          },
+          warmup: 2,
+          time: 3
+        )
     """
-    def run(jobs, config \\ [])
-
-    def run(jobs, config) when is_list(config) do
-      do_run(jobs, config)
-    end
-
-    def run(config, jobs) when is_map(jobs) do
-      IO.puts("""
-      Passing configuration as the first argument to `run/2` is deprecated.
-      Please see the documentation for `run/2` for updated usage instructions.
-      """)
-
-      # pre 0.6.0 way of passing in the config first and as a map
-      do_run(jobs, config)
-    end
-
-    defp do_run(jobs, config) do
+    @spec run(map, keyword) :: any
+    def run(jobs, config \\ []) when is_list(config) do
       config
       |> Benchee.init()
       |> Benchee.system()

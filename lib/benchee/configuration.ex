@@ -3,8 +3,6 @@ defmodule Benchee.Configuration do
   Functions to handle the configuration of Benchee, exposes `init/1` function.
   """
 
-  alias Benchee.Formatters.{Console, CSV, HTML, JSON}
-
   alias Benchee.{
     Configuration,
     Conversion.Duration,
@@ -19,7 +17,7 @@ defmodule Benchee.Configuration do
             warmup: 2,
             memory_time: 0.0,
             pre_check: false,
-            formatters: [Console],
+            formatters: [{Console, %{comparison: true, extended_statistics: false}}],
             percentiles: [50, 99],
             print: %{
               benchmarking: true,
@@ -29,16 +27,7 @@ defmodule Benchee.Configuration do
             inputs: nil,
             save: false,
             load: false,
-            # formatters should end up here but known once are still picked up at
-            # the top level for now
-            formatter_options: %{
-              console: %{
-                comparison: true,
-                extended_statistics: false
-              }
-            },
             unit_scaling: :best,
-            # If you/your plugin/whatever needs it your data can go here
             assigns: %{},
             before_each: nil,
             after_each: nil,
@@ -53,12 +42,11 @@ defmodule Benchee.Configuration do
           warmup: number,
           memory_time: number,
           pre_check: boolean,
-          formatters: [(Suite.t() -> Suite.t())],
+          formatters: [(Suite.t() -> Suite.t()) | {atom, map}],
           print: map,
           inputs: %{Suite.key() => any} | [{Suite.key(), any}] | nil,
           save: map | false,
           load: String.t() | [String.t()] | false,
-          formatter_options: map,
           unit_scaling: Scale.scaling_strategy(),
           assigns: map,
           before_each: fun | nil,
@@ -265,9 +253,7 @@ defmodule Benchee.Configuration do
       ...>   warmup: 0.2,
       ...>   formatters: [&IO.puts/1],
       ...>   print: [fast_warning: false],
-      ...>   console: [comparison: false],
       ...>   inputs: %{"Small" => 5, "Big" => 9999},
-      ...>   formatter_options: [some: "option"],
       ...>   unit_scaling: :smallest)
       %Benchee.Suite{
         configuration:
@@ -283,13 +269,6 @@ defmodule Benchee.Configuration do
               benchmarking: true,
               fast_warning: false,
               configuration: true
-            },
-            formatter_options: %{
-              console: %{
-                comparison: false,
-                extended_statistics: false
-              },
-              some: "option"
             },
             percentiles: [50, 99],
             unit_scaling: :smallest,
@@ -311,7 +290,6 @@ defmodule Benchee.Configuration do
       config
       |> standardized_user_configuration
       |> merge_with_defaults
-      |> formatter_options_to_tuples
       |> convert_time_to_nano_s
       |> update_measure_memory
       |> save_option_conversion
@@ -322,43 +300,7 @@ defmodule Benchee.Configuration do
   defp standardized_user_configuration(config) do
     config
     |> DeepConvert.to_map([:formatters, :inputs])
-    |> translate_formatter_keys()
     |> standardize_inputs()
-  end
-
-  # backwards compatible translation of formatter keys to go into
-  # formatter_options now
-  @formatter_keys [:console, :csv, :json, :html]
-  defp translate_formatter_keys(config) do
-    {formatter_options, config} = Map.split(config, @formatter_keys)
-    DeepMerge.deep_merge(%{formatter_options: formatter_options}, config)
-  end
-
-  # backwards compatible formatter definition without leaving the burden on every formatter
-  defp formatter_options_to_tuples(config) do
-    update_in(config, [Access.key(:formatters), Access.all()], fn
-      Console -> formatter_configuration_from_options(config, Console, :console)
-      CSV -> formatter_configuration_from_options(config, CSV, :csv)
-      JSON -> formatter_configuration_from_options(config, JSON, :json)
-      HTML -> formatter_configuration_from_options(config, HTML, :html)
-      formatter -> formatter
-    end)
-  end
-
-  defp formatter_configuration_from_options(config, module, legacy_option_key) do
-    if Map.has_key?(config.formatter_options, legacy_option_key) do
-      IO.puts("""
-
-      Using `:formatter_options` to configure formatters is now deprecated.
-      Please see the documentation for `Benchee.Configuration.init/1` for
-      current usage instructions.
-
-      """)
-
-      {module, config.formatter_options[legacy_option_key]}
-    else
-      module
-    end
   end
 
   defp standardize_inputs(config = %{inputs: inputs}) do
@@ -418,22 +360,13 @@ defmodule Benchee.Configuration do
     """)
   end
 
-  defp save_option_conversion(config = %{save: false}) do
-    config
-  end
+  defp save_option_conversion(config = %{save: false}), do: config
 
   defp save_option_conversion(config = %{save: save_values}) do
     save_options = Map.merge(save_defaults(), save_values)
-
-    tagged_save_options = %{
-      tag: save_options.tag,
-      path: save_options.path
-    }
-
-    %__MODULE__{
-      config
-      | formatters: config.formatters ++ [{Benchee.Formatters.TaggedSave, tagged_save_options}]
-    }
+    tagged_save_options = %{tag: save_options.tag, path: save_options.path}
+    formatters = config.formatters ++ [{Benchee.Formatters.TaggedSave, tagged_save_options}]
+    %__MODULE__{config | formatters: formatters}
   end
 
   defp save_defaults do

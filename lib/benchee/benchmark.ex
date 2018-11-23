@@ -6,8 +6,7 @@ defmodule Benchee.Benchmark do
 
   alias Benchee.Benchmark.{Runner, Scenario, ScenarioContext}
   alias Benchee.Output.BenchmarkPrinter, as: Printer
-  alias Benchee.Suite
-  alias Benchee.Utility.DeepConvert
+  alias Benchee.{Suite, Utility.DeepConvert}
 
   @type job_name :: String.t() | atom
   @no_input :__no_input
@@ -46,19 +45,6 @@ defmodule Benchee.Benchmark do
        ) do
     new_scenarios = build_scenarios_for_job(job_name, function, config)
     %Suite{suite | scenarios: List.flatten([scenarios | new_scenarios])}
-  end
-
-  defp build_scenarios_for_job(job_name, function, config)
-
-  defp build_scenarios_for_job(job_name, function, nil) do
-    [
-      build_scenario(%{
-        job_name: job_name,
-        function: function,
-        input: @no_input,
-        input_name: @no_input
-      })
-    ]
   end
 
   defp build_scenarios_for_job(job_name, function, %{inputs: nil}) do
